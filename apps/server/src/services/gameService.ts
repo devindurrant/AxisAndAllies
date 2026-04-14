@@ -11,10 +11,7 @@ import type {
   Turn,
   CombatEvent,
 } from "@prisma/client";
-import { GameStatus, PowerName, TurnPhase } from "@aa/shared";
-import { advanceTurn } from "@aa/shared";
-import { TERRITORIES, STARTING_UNITS, STARTING_IPC } from "../../packages/shared/src/mapData.js";
-import { STARTING_IPC as INCOME_STARTING_IPC } from "../../packages/shared/src/income.js";
+import { GameStatus, PowerName, TurnPhase, advanceTurn, TERRITORIES, STARTING_UNITS, STARTING_IPC } from "@aa/shared";
 import { db } from "../db.js";
 
 // ─── Re-exported full game type ───────────────────────────────────────────────
@@ -92,7 +89,7 @@ export async function createGame(
   // Use the income module's starting IPC values as authoritative source,
   // falling back to mapData if income module has different values
   const startingIpc =
-    INCOME_STARTING_IPC[creatorPower] ?? STARTING_IPC[creatorPower] ?? 0;
+    STARTING_IPC[creatorPower] ?? 0;
 
   const game = await db.game.create({
     data: {
@@ -207,7 +204,7 @@ export async function joinGame(
   if (powerTaken) throw new Error(`Power ${power} is already taken`);
 
   const startingIpc =
-    INCOME_STARTING_IPC[power] ?? STARTING_IPC[power] ?? 0;
+    STARTING_IPC[power] ?? 0;
 
   return db.gamePlayer.create({
     data: {

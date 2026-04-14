@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useGame } from '../hooks/useGame.ts'
@@ -15,18 +15,15 @@ export default function GamePage() {
   const queryClient = useQueryClient()
   const activeCombatTerritory = useGameStore((s) => s.activeCombatTerritory)
 
-  if (!id) {
-    navigate('/lobby')
-    return null
-  }
-
-  const { game, isLoading, refetch } = useGame(id)
+  // All hooks must be called unconditionally — redirect handled via effect
+  const gameId = id ?? ''
+  const { game, isLoading, refetch } = useGame(gameId)
 
   const handleStateUpdated = useCallback(
     (updatedState: GameState) => {
-      queryClient.setQueryData(['game', id], updatedState)
+      queryClient.setQueryData(['game', gameId], updatedState)
     },
-    [id, queryClient],
+    [gameId, queryClient],
   )
 
   const handleYourTurn = useCallback(() => {
@@ -41,11 +38,17 @@ export default function GamePage() {
   )
 
   useSocket({
-    gameId: id,
+    gameId: gameId || undefined,
     onStateUpdated: handleStateUpdated,
     onYourTurn: handleYourTurn,
     onCombatResult: handleCombatResult,
   })
+
+  useEffect(() => {
+    if (!id) navigate('/lobby', { replace: true })
+  }, [id, navigate])
+
+  if (!id) return null
 
   if (isLoading) {
     return (

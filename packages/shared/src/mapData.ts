@@ -811,7 +811,7 @@ export const STARTING_UNITS: StartingUnit[] = [
   { territoryKey: "sz_2", power: PowerName.UK, type: "FIGHTER", quantity: 1 },
   { territoryKey: "sz_7", power: PowerName.UK, type: "DESTROYER", quantity: 1 },
   { territoryKey: "sz_7", power: PowerName.UK, type: "TRANSPORT", quantity: 1 },
-  { territoryKey: "sz_15", power: PowerName.UK, type: "CRUISER", quantity: 1 },
+  { territoryKey: "sz_15", power: PowerName.UK, type: "DESTROYER", quantity: 1 },
 
   // ── JAPAN ──────────────────────────────────────────────────────────────────
   { territoryKey: "japan", power: PowerName.JAPAN, type: "INFANTRY", quantity: 3 },
@@ -860,12 +860,5 @@ export const STARTING_UNITS: StartingUnit[] = [
   { territoryKey: "sz_26", power: PowerName.USA, type: "TRANSPORT", quantity: 2 },
 ];
 
-// ─── Starting IPC balances ────────────────────────────────────────────────────
-
-export const STARTING_IPC: Record<PowerName, number> = {
-  [PowerName.USSR]: 24,
-  [PowerName.GERMANY]: 40,
-  [PowerName.UK]: 43,
-  [PowerName.JAPAN]: 26,
-  [PowerName.USA]: 42,
-};
+// Starting IPC balances are defined in income.ts to avoid duplication.
+// Import STARTING_IPC from "@aa/shared" (re-exported from income.ts).

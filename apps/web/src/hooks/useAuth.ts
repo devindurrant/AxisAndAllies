@@ -11,7 +11,7 @@ interface UseAuthReturn {
 }
 
 export function useAuth(): UseAuthReturn {
-  const { user, isLoading: storeLoading, setUser, setLoading } = useAuthStore()
+  const { user, setUser, setLoading } = useAuthStore()
 
   const { data, isLoading: queryLoading, isError } = useQuery({
     queryKey: ['auth', 'me'],
@@ -34,7 +34,7 @@ export function useAuth(): UseAuthReturn {
 
   return {
     user,
-    isLoading: queryLoading || storeLoading,
+    isLoading: queryLoading,
     isAuthenticated: user !== null,
   }
 }

@@ -1,14 +1,13 @@
 /**
- * POST /api/games/:id/phases/combat-move
+ * POST /api/games/:id/phases/noncombat-move
  *
- * Validates and applies combat move orders for the active player.
- * Each move is validated against the shared isValidCombatMove function.
- * Unit positions are updated in DB and moves are logged to the Turn actionLog.
+ * Validates and applies non-combat move orders for the active player.
+ * Destination must be friendly/uncontrolled (no entering enemy territory).
  */
 
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { TurnPhase, isValidCombatMove, TERRITORIES } from "@aa/shared";
+import { TurnPhase, isValidNoncombatMove, TERRITORIES } from "@aa/shared";
 import type { TerritoryNode, GameTerritoryState } from "@aa/shared";
 import { requireAuth } from "../../auth/middleware.js";
 import { assertActivePlayer, getCurrentTurn } from "../../services/gameService.js";
@@ -16,7 +15,7 @@ import { db } from "../../db.js";
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
-const CombatMoveBodySchema = z.object({
+const NoncombatMoveBodySchema = z.object({
   moves: z.array(
     z.object({
       unitId: z.string().min(1),
@@ -27,14 +26,16 @@ const CombatMoveBodySchema = z.object({
 
 // ─── Route plugin ─────────────────────────────────────────────────────────────
 
-export async function combatMoveRoute(fastify: FastifyInstance): Promise<void> {
+export async function noncombatMoveRoute(
+  fastify: FastifyInstance,
+): Promise<void> {
   fastify.post<{ Params: { id: string } }>(
-    "/games/:id/phases/combat-move",
+    "/games/:id/phases/noncombat-move",
     { preHandler: requireAuth },
     async (request, reply) => {
       const gameId = request.params.id;
 
-      const parseResult = CombatMoveBodySchema.safeParse(request.body);
+      const parseResult = NoncombatMoveBodySchema.safeParse(request.body);
       if (!parseResult.success) {
         return reply.status(400).send({
           error: "Validation error",
@@ -46,17 +47,16 @@ export async function combatMoveRoute(fastify: FastifyInstance): Promise<void> {
       const { player } = await assertActivePlayer(gameId, request.user.id);
 
       const turn = await getCurrentTurn(gameId);
-      if (!turn || turn.phase !== TurnPhase.COMBAT_MOVE) {
-        return reply.status(409).send({ error: "Not in combat move phase" });
+      if (!turn || turn.phase !== TurnPhase.NONCOMBAT_MOVE) {
+        return reply.status(409).send({ error: "Not in non-combat move phase" });
       }
 
-      // Fetch game units and territory states for validation
+      // Fetch units and territory states for validation
       const [gameUnits, territoryStates] = await Promise.all([
         db.unit.findMany({ where: { gameId, power: player.power } }),
         db.territoryState.findMany({ where: { gameId } }),
       ]);
 
-      // Build movement graph from shared map data
       const territoryNodes: TerritoryNode[] = TERRITORIES.map((t) => ({
         key: t.key,
         type: t.type,
@@ -65,10 +65,9 @@ export async function combatMoveRoute(fastify: FastifyInstance): Promise<void> {
 
       const gameStates: GameTerritoryState[] = territoryStates.map((ts) => ({
         key: ts.territoryKey,
-        controlledBy: ts.controlledBy as PowerName | null,
+        controlledBy: ts.controlledBy as import("@aa/shared").PowerName | null,
       }));
 
-      // Validate all moves up front before applying any
       const unitMap = new Map(gameUnits.map((u) => [u.id, u]));
       const appliedMoves: Array<{ unitId: string; from: string; to: string }> = [];
 
@@ -85,7 +84,7 @@ export async function combatMoveRoute(fastify: FastifyInstance): Promise<void> {
           });
         }
 
-        const valid = isValidCombatMove(
+        const valid = isValidNoncombatMove(
           unit.territoryKey,
           move.toTerritory,
           unit.type as import("@aa/shared").UnitType,
@@ -96,7 +95,7 @@ export async function combatMoveRoute(fastify: FastifyInstance): Promise<void> {
 
         if (!valid) {
           return reply.status(400).send({
-            error: `Invalid combat move for unit ${move.unitId} to ${move.toTerritory}`,
+            error: `Invalid non-combat move for unit ${move.unitId} to ${move.toTerritory}`,
           });
         }
 
@@ -107,7 +106,7 @@ export async function combatMoveRoute(fastify: FastifyInstance): Promise<void> {
         });
       }
 
-      // Apply moves in a transaction
+      // Apply moves in a transaction — reset hasMoved for non-combat moves
       await db.$transaction([
         ...appliedMoves.map((m) =>
           db.unit.update({
@@ -121,7 +120,7 @@ export async function combatMoveRoute(fastify: FastifyInstance): Promise<void> {
             actionLog: [
               ...(Array.isArray(turn.actionLog) ? turn.actionLog : []),
               {
-                type: "COMBAT_MOVE",
+                type: "NONCOMBAT_MOVE",
                 moves: appliedMoves,
                 timestamp: new Date().toISOString(),
               },
