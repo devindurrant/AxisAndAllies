@@ -67,14 +67,15 @@ export async function mobilizeRoute(fastify: FastifyInstance): Promise<void> {
         return reply.status(409).send({ error: "Not in mobilize units phase" });
       }
 
-      // Extract purchase order from actionLog
+      // Extract purchase order from actionLog (find the most recent PURCHASE entry)
       const actionLog = Array.isArray(turn.actionLog) ? turn.actionLog : [];
-      const purchaseEntry = actionLog.findLast?.(
+      const purchaseEntries = actionLog.filter(
         (entry: unknown) =>
           typeof entry === "object" &&
           entry !== null &&
           (entry as { type: string }).type === "PURCHASE",
-      ) as
+      );
+      const purchaseEntry = purchaseEntries[purchaseEntries.length - 1] as
         | {
             purchases: Array<{ type: string; quantity: number }>;
             totalCost: number;

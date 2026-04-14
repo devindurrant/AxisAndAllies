@@ -24,19 +24,15 @@ import { noncombatMoveRoute } from "./routes/phases/noncombatMove.js";
 import { mobilizeRoute } from "./routes/phases/mobilize.js";
 import { collectIncomeRoute } from "./routes/phases/collectIncome.js";
 import { nextPhaseRoute } from "./routes/phases/nextPhase.js";
-import { joinGameRoom, leaveGameRoom, emitToGame } from "./sockets/gameRoom.js";
+import { joinGameRoom, leaveGameRoom } from "./sockets/gameRoom.js";
 import { db } from "./db.js";
 
 // ─── Fastify ──────────────────────────────────────────────────────────────────
 
 const fastify = Fastify({
-  logger: {
-    level: config.nodeEnv === "production" ? "warn" : "info",
-    transport:
-      config.nodeEnv !== "production"
-        ? { target: "pino-pretty", options: { colorize: true } }
-        : undefined,
-  },
+  logger: config.nodeEnv === "production"
+    ? { level: "warn" }
+    : { level: "info" },
 });
 
 // ─── HTTP server (wrapping Fastify for Socket.io) ────────────────────────────
