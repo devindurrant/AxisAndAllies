@@ -12,6 +12,7 @@ import type {
   CombatEvent,
 } from "@prisma/client";
 import { GameStatus, PowerName, TurnPhase, advanceTurn, TERRITORIES, STARTING_UNITS, STARTING_IPC } from "@aa/shared";
+import type { UnitType as PrismaUnitType } from "@prisma/client";
 import { db } from "../db.js";
 
 // ─── Re-exported full game type ───────────────────────────────────────────────
@@ -69,7 +70,7 @@ export async function createGame(
   const unitSeeds: Array<{
     territoryKey: string;
     power: PowerName;
-    type: string;
+    type: PrismaUnitType;
     isDisabled: boolean;
     hasMoved: boolean;
   }> = [];
@@ -79,7 +80,7 @@ export async function createGame(
       unitSeeds.push({
         territoryKey: su.territoryKey,
         power: su.power as PowerName,
-        type: su.type,
+        type: su.type as PrismaUnitType,
         isDisabled: false,
         hasMoved: false,
       });
@@ -110,7 +111,7 @@ export async function createGame(
         createMany: { data: territorySeeds },
       },
       units: {
-        createMany: { data: unitSeeds as Parameters<typeof db.unit.createMany>[0]["data"] },
+        createMany: { data: unitSeeds },
       },
     },
     include: FULL_GAME_INCLUDE,

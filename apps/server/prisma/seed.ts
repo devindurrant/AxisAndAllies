@@ -5,7 +5,7 @@
  * Run with: pnpm --filter server db:seed
  */
 
-import { PrismaClient, GameStatus, PowerName, TurnPhase } from "@prisma/client";
+import { PrismaClient, GameStatus, PowerName, TurnPhase, UnitType } from "@prisma/client";
 import bcrypt from "bcrypt";
 import { TERRITORIES, STARTING_UNITS, STARTING_IPC } from "@aa/shared";
 
@@ -56,7 +56,7 @@ async function main(): Promise<void> {
   const unitSeeds: Array<{
     territoryKey: string;
     power: PowerName;
-    type: string;
+    type: UnitType;
     isDisabled: boolean;
     hasMoved: boolean;
   }> = [];
@@ -66,7 +66,7 @@ async function main(): Promise<void> {
       unitSeeds.push({
         territoryKey: su.territoryKey,
         power: su.power as PowerName,
-        type: su.type,
+        type: su.type as UnitType,
         isDisabled: false,
         hasMoved: false,
       });
@@ -102,15 +102,7 @@ async function main(): Promise<void> {
         createMany: { data: territorySeeds },
       },
       units: {
-        createMany: {
-          data: unitSeeds as Array<{
-            territoryKey: string;
-            power: PowerName;
-            type: string;
-            isDisabled: boolean;
-            hasMoved: boolean;
-          }>,
-        },
+        createMany: { data: unitSeeds },
       },
     },
   });
