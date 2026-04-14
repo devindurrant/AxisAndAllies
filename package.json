@@ -1,0 +1,18 @@
+{
+  "name": "axis-and-allies",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Axis & Allies 1942 2nd Edition - Online Async Multiplayer",
+  "scripts": {
+    "dev": "concurrently \"pnpm --filter server dev\" \"pnpm --filter web dev\"",
+    "build": "pnpm --filter shared build && pnpm --filter server build && pnpm --filter web build",
+    "test": "pnpm --filter shared test",
+    "db:migrate": "pnpm --filter server db:migrate",
+    "db:seed": "pnpm --filter server db:seed",
+    "db:studio": "pnpm --filter server db:studio"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "typescript": "^5.4.5"
+  }
+}
