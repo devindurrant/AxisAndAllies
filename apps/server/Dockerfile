@@ -1,6 +1,9 @@
 # ── Stage 1: builder ──────────────────────────────────────────────────────────
 FROM node:20-alpine AS builder
 
+# Prisma's schema engine requires OpenSSL on Alpine
+RUN apk add --no-cache openssl
+
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
@@ -25,6 +28,9 @@ RUN pnpm --filter @aa/server build
 
 # ── Stage 2: production ───────────────────────────────────────────────────────
 FROM node:20-alpine AS production
+
+# Prisma's schema engine and query engine require OpenSSL on Alpine
+RUN apk add --no-cache openssl
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
