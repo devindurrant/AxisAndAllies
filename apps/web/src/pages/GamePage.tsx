@@ -1,30 +1,25 @@
 import { useCallback, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
 import { useGame } from '../hooks/useGame.ts'
 import { useSocket } from '../hooks/useSocket.ts'
 import { useGameStore } from '../store/gameStore.ts'
 import Sidebar from '../components/layout/Sidebar.tsx'
 import GameMap from '../components/map/GameMap.tsx'
 import CombatModal from '../components/combat/CombatModal.tsx'
-import type { GameState, CombatRoundResult } from '../types.ts'
+import type { CombatRoundResult } from '../types.ts'
 
 export default function GamePage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
   const activeCombatTerritory = useGameStore((s) => s.activeCombatTerritory)
 
   // All hooks must be called unconditionally — redirect handled via effect
   const gameId = id ?? ''
   const { game, isLoading, refetch } = useGame(gameId)
 
-  const handleStateUpdated = useCallback(
-    (updatedState: GameState) => {
-      queryClient.setQueryData(['game', gameId], updatedState)
-    },
-    [gameId, queryClient],
-  )
+  const handleStateUpdated = useCallback(() => {
+    refetch()
+  }, [refetch])
 
   const handleYourTurn = useCallback(() => {
     refetch()
