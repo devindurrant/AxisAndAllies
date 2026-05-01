@@ -35,14 +35,16 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
 COPY --from=builder /app/packages/shared/package.json ./packages/shared/
 COPY --from=builder /app/apps/server/package.json ./apps/server/
 
-# Install production dependencies only
+# Install production dependencies only (prisma is a dependency so it's included)
 RUN pnpm install --frozen-lockfile --prod
 
-# Copy built output and prisma schema (needed at runtime by prisma client)
+# Copy built output and prisma schema
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 COPY --from=builder /app/apps/server/dist ./apps/server/dist
 COPY --from=builder /app/apps/server/prisma ./apps/server/prisma
-COPY --from=builder /app/node_modules/.pnpm ./node_modules/.pnpm
+
+# Generate Prisma client against the production node_modules
+RUN pnpm --filter @aa/server exec prisma generate
 
 EXPOSE 3001
 
