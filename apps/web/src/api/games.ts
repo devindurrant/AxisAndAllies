@@ -8,18 +8,18 @@ import type {
 import type { PowerName, UnitType } from '../types.ts'
 
 export async function listGames(): Promise<GameSummary[]> {
-  const { data } = await apiClient.get<GameSummary[]>('/games')
-  return data
+  const { data } = await apiClient.get<{ games: GameSummary[] }>('/games')
+  return data.games
 }
 
 export async function createGame(name: string, power: PowerName): Promise<Game> {
-  const { data } = await apiClient.post<Game>('/games', { name, power })
-  return data
+  const { data } = await apiClient.post<{ game: Game }>('/games', { name, power })
+  return data.game
 }
 
 export async function getGame(id: string): Promise<GameState> {
-  const { data } = await apiClient.get<GameState>(`/games/${id}`)
-  return data
+  const { data } = await apiClient.get<{ game: GameState }>(`/games/${id}`)
+  return data.game
 }
 
 export async function joinGame(id: string, power: PowerName): Promise<void> {
