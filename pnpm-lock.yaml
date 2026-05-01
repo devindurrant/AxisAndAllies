@@ -41,6 +41,9 @@ importers:
       lucia:
         specifier: ^3.2.0
         version: 3.2.2
+      prisma:
+        specifier: ^5.15.0
+        version: 5.22.0
       resend:
         specifier: ^3.3.0
         version: 3.5.0(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -57,9 +60,6 @@ importers:
       '@types/node':
         specifier: ^20.14.2
         version: 20.19.39
-      prisma:
-        specifier: ^5.15.0
-        version: 5.22.0
       tsx:
         specifier: ^4.15.7
         version: 4.21.0
