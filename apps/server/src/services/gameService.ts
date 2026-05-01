@@ -406,7 +406,7 @@ export async function setPlayerReady(
     where: { gameId },
   });
 
-  const allReady = updatedPlayers.length >= 2 && updatedPlayers.every((p) => p.isReady);
+  const allReady = updatedPlayers.length >= 1 && updatedPlayers.every((p) => p.isReady);
 
   if (allReady) {
     // Start the game — determine first active power from player list

@@ -166,7 +166,7 @@ export const TERRITORIES: TerritoryData[] = [
     type: TerritoryType.LAND,
     startingController: PowerName.GERMANY,
     ipcValue: 4,
-    adjacencies: ["germany", "western_europe", "poland", "romania", "sz_15"],
+    adjacencies: ["germany", "western_europe", "eastern_europe", "romania", "sz_15"],
     hasFactory: true,
   },
   {
@@ -175,7 +175,7 @@ export const TERRITORIES: TerritoryData[] = [
     type: TerritoryType.LAND,
     startingController: PowerName.GERMANY,
     ipcValue: 2,
-    adjacencies: ["germany", "southern_europe", "eastern_europe", "belorussia", "baltic_states"],
+    adjacencies: ["germany", "eastern_europe", "belorussia", "baltic_states"],
     hasFactory: false,
   },
   {
@@ -440,7 +440,7 @@ export const TERRITORIES: TerritoryData[] = [
     type: TerritoryType.LAND,
     startingController: PowerName.JAPAN,
     ipcValue: 2,
-    adjacencies: ["manchuria", "yunnan", "india", "kazakh"],
+    adjacencies: ["manchuria", "yunnan"],
     hasFactory: false,
   },
   {

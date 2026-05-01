@@ -1,9 +1,9 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { nextPhase } from '../../api/games.ts'
+import { nextPhase, setReady } from '../../api/games.ts'
 import { useAuthStore } from '../../store/authStore.ts'
 import { useGameStore } from '../../store/gameStore.ts'
 import { TURN_ORDER, PHASE_ORDER } from '@aa/shared'
-import { TurnPhase } from '@aa/shared'
+import { TurnPhase, GameStatus } from '@aa/shared'
 import PowerBadge from '../ui/PowerBadge.tsx'
 import PhaseIndicator from '../phases/PhaseIndicator.tsx'
 import PurchasePanel from '../phases/PurchasePanel.tsx'
@@ -51,6 +51,14 @@ export default function Sidebar({ game, gameId }: SidebarProps) {
     },
   })
 
+  const readyMutation = useMutation({
+    mutationFn: () => setReady(gameId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['game', gameId] })
+    },
+  })
+
+  const myPlayerIsReady = myPlayer?.isReady ?? false
   const phaseIndex = PHASE_ORDER.indexOf(game.currentPhase)
   const isLastPhase = phaseIndex === PHASE_ORDER.length - 1
 
@@ -136,59 +144,101 @@ export default function Sidebar({ game, gameId }: SidebarProps) {
         </div>
       </div>
 
-      {/* Phase-specific Action Panel */}
+      {/* Action Panel */}
       <div className="flex-1 overflow-y-auto px-4 py-3">
-        {isMyTurn && game.currentPhase === TurnPhase.PURCHASE_UNITS && (
-          <PurchasePanel game={game} gameId={gameId} myIPC={myPlayer?.ipc ?? 0} />
-        )}
-        {isMyTurn && game.currentPhase === TurnPhase.MOBILIZE_UNITS && (
-          <MobilizePanel game={game} gameId={gameId} />
-        )}
-        {isMyTurn && game.currentPhase === TurnPhase.COMBAT_MOVE && (
-          <div className="text-sm text-gray-300 space-y-2">
-            <p className="font-medium">Combat Move</p>
-            <p className="text-gray-400 text-xs">
-              Click units on the map, then click a target territory to stage an attack.
-              When ready, confirm below.
-            </p>
-          </div>
-        )}
-        {isMyTurn && game.currentPhase === TurnPhase.CONDUCT_COMBAT && (
-          <div className="text-sm text-gray-300 space-y-2">
-            <p className="font-medium">Conduct Combat</p>
-            <p className="text-gray-400 text-xs">
-              Click a contested territory on the map to open the combat resolution panel.
-            </p>
-            {game.activeCombats.length === 0 && (
-              <p className="text-green-400 text-xs">No active combats — ready to advance.</p>
+        {game.status === GameStatus.LOBBY ? (
+          /* ── Lobby: waiting for players to ready up ── */
+          <div className="space-y-3">
+            <p className="text-xs text-gray-400 uppercase tracking-wider">Players</p>
+            <div className="space-y-2">
+              {TURN_ORDER.map((power) => {
+                const player = game.players.find((p) => p.power === power)
+                if (!player) return null
+                return (
+                  <div key={power} className="flex items-center justify-between text-sm">
+                    <span className="text-gray-300 truncate max-w-[120px]">{player.username}</span>
+                    <span className={player.isReady ? 'text-green-400 text-xs font-medium' : 'text-gray-500 text-xs'}>
+                      {player.isReady ? 'Ready ✓' : 'Not ready'}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+            {!myPlayerIsReady && myPlayer && (
+              <Button
+                variant="primary"
+                size="sm"
+                className="w-full mt-2"
+                isLoading={readyMutation.isPending}
+                onClick={() => readyMutation.mutate()}
+              >
+                Ready Up
+              </Button>
+            )}
+            {myPlayerIsReady && (
+              <p className="text-green-400 text-xs text-center">
+                You are ready. Waiting for other players…
+              </p>
+            )}
+            {readyMutation.isError && (
+              <p className="text-red-400 text-xs text-center">Failed to ready up. Try again.</p>
             )}
           </div>
-        )}
-        {isMyTurn && game.currentPhase === TurnPhase.NONCOMBAT_MOVE && (
-          <div className="text-sm text-gray-300 space-y-2">
-            <p className="font-medium">Non-Combat Move</p>
-            <p className="text-gray-400 text-xs">
-              Move remaining friendly units to safe territories.
-            </p>
-          </div>
-        )}
-        {isMyTurn && game.currentPhase === TurnPhase.COLLECT_INCOME && (
-          <div className="text-sm text-gray-300 space-y-2">
-            <p className="font-medium">Collect Income</p>
-            <p className="text-gray-400 text-xs">
-              Click "End Phase" to collect your IPC income and end your turn.
-            </p>
-          </div>
-        )}
-        {!isMyTurn && (
-          <p className="text-gray-500 text-sm text-center mt-4">
-            Waiting for <span className="text-gray-300">{game.activePower}</span>…
-          </p>
+        ) : (
+          /* ── Active game: phase-specific panels ── */
+          <>
+            {isMyTurn && game.currentPhase === TurnPhase.PURCHASE_UNITS && (
+              <PurchasePanel game={game} gameId={gameId} myIPC={myPlayer?.ipc ?? 0} />
+            )}
+            {isMyTurn && game.currentPhase === TurnPhase.MOBILIZE_UNITS && (
+              <MobilizePanel game={game} gameId={gameId} />
+            )}
+            {isMyTurn && game.currentPhase === TurnPhase.COMBAT_MOVE && (
+              <div className="text-sm text-gray-300 space-y-2">
+                <p className="font-medium">Combat Move</p>
+                <p className="text-gray-400 text-xs">
+                  Click units on the map, then click a target territory to stage an attack.
+                </p>
+              </div>
+            )}
+            {isMyTurn && game.currentPhase === TurnPhase.CONDUCT_COMBAT && (
+              <div className="text-sm text-gray-300 space-y-2">
+                <p className="font-medium">Conduct Combat</p>
+                <p className="text-gray-400 text-xs">
+                  Click a contested territory on the map to open the combat resolution panel.
+                </p>
+                {game.activeCombats.length === 0 && (
+                  <p className="text-green-400 text-xs">No active combats — ready to advance.</p>
+                )}
+              </div>
+            )}
+            {isMyTurn && game.currentPhase === TurnPhase.NONCOMBAT_MOVE && (
+              <div className="text-sm text-gray-300 space-y-2">
+                <p className="font-medium">Non-Combat Move</p>
+                <p className="text-gray-400 text-xs">
+                  Move remaining friendly units to safe territories.
+                </p>
+              </div>
+            )}
+            {isMyTurn && game.currentPhase === TurnPhase.COLLECT_INCOME && (
+              <div className="text-sm text-gray-300 space-y-2">
+                <p className="font-medium">Collect Income</p>
+                <p className="text-gray-400 text-xs">
+                  Click "End Phase" to collect your IPC income and end your turn.
+                </p>
+              </div>
+            )}
+            {!isMyTurn && (
+              <p className="text-gray-500 text-sm text-center mt-4">
+                Waiting for <span className="text-gray-300">{game.activePower}</span>…
+              </p>
+            )}
+          </>
         )}
       </div>
 
-      {/* End Phase Button */}
-      {isMyTurn && canEndPhase && (
+      {/* End Phase Button — only shown when game is active */}
+      {game.status === GameStatus.ACTIVE && isMyTurn && canEndPhase && (
         <div className="px-4 py-4 border-t border-gray-700">
           <Button
             variant="primary"
