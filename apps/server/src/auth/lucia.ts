@@ -16,7 +16,7 @@ export const lucia = new Lucia(adapter, {
   sessionCookie: {
     name: "aa_session",
     attributes: {
-      secure: process.env["NODE_ENV"] === "production",
+      secure: process.env["COOKIE_SECURE"] === "true",
       sameSite: "lax",
     },
   },

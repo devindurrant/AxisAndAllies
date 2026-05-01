@@ -2,8 +2,8 @@ import apiClient from './client.ts'
 import type { User } from '../types.ts'
 
 export async function login(email: string, password: string): Promise<User> {
-  const { data } = await apiClient.post<User>('/auth/login', { email, password })
-  return data
+  const { data } = await apiClient.post<{ user: User }>('/auth/login', { email, password })
+  return data.user
 }
 
 export async function register(
@@ -11,12 +11,12 @@ export async function register(
   email: string,
   password: string,
 ): Promise<User> {
-  const { data } = await apiClient.post<User>('/auth/register', {
+  const { data } = await apiClient.post<{ user: User }>('/auth/register', {
     username,
     email,
     password,
   })
-  return data
+  return data.user
 }
 
 export async function logout(): Promise<void> {
@@ -24,6 +24,7 @@ export async function logout(): Promise<void> {
 }
 
 export async function getMe(): Promise<User> {
-  const { data } = await apiClient.get<User>('/auth/me')
-  return data
+  const { data } = await apiClient.get<{ user: User }>('/auth/me')
+  return data.user
 }
+
