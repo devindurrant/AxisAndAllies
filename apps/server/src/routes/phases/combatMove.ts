@@ -8,7 +8,7 @@
 
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { TurnPhase, isValidCombatMove, TERRITORIES } from "@aa/shared";
+import { TurnPhase, PowerName, isValidCombatMove, TERRITORIES } from "@aa/shared";
 import type { TerritoryNode, GameTerritoryState } from "@aa/shared";
 import { requireAuth } from "../../auth/middleware.js";
 import { assertActivePlayer, getCurrentTurn } from "../../services/gameService.js";
