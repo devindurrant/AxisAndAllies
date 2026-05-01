@@ -83,13 +83,17 @@ export interface Game {
 }
 
 export interface CombatRoundResult {
+  combatEventId: string
   attackerRolls: number[]
   defenderRolls: number[]
   attackerHits: number
   defenderHits: number
-  attackerCasualties: GameUnit[]
-  defenderCasualties: GameUnit[]
+  attackerCasualties: { id: string; type: string | undefined }[]
+  defenderCasualties: { id: string; type: string | undefined }[]
+  remainingAttackers: number
+  remainingDefenders: number
+  attackerWins: boolean
+  defenderWins: boolean
+  territoryKey: string
   log: string[]
-  updatedAttackers: GameUnit[]
-  updatedDefenders: GameUnit[]
 }

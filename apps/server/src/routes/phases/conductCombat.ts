@@ -269,17 +269,18 @@ export async function conductCombatRoute(
 
       const result = {
         combatEventId: combatEvent.id,
-        attackDice,
-        defenseDice,
-        attackHits,
-        defenseHits,
-        attackerLosses: unitsLost.attackerLosses,
-        defenderLosses: unitsLost.defenderLosses,
+        attackerRolls: attackDice,
+        defenderRolls: defenseDice,
+        attackerHits: attackHits,
+        defenderHits: defenseHits,
+        attackerCasualties: unitsLost.attackerLosses,
+        defenderCasualties: unitsLost.defenderLosses,
         remainingAttackers: remainingAttackers.length,
         remainingDefenders: remainingDefenders.length,
         attackerWins,
         defenderWins,
         territoryKey,
+        log: [],
       };
 
       // Emit socket event via the io instance (attached to fastify)

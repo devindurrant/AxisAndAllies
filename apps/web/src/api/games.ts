@@ -51,8 +51,8 @@ export async function resolveCombatRound(
   defenderCasualties: string[],
 ): Promise<CombatRoundResult> {
   const { data } = await apiClient.post<CombatRoundResult>(
-    `/games/${id}/phases/combat/resolve`,
-    { territory, attackerCasualties, defenderCasualties },
+    `/games/${id}/phases/combat/${territory}`,
+    { attackerCasualties, defenderCasualties },
   )
   return data
 }
@@ -72,9 +72,9 @@ export async function submitMobilize(
 }
 
 export async function collectIncome(id: string): Promise<void> {
-  await apiClient.post(`/games/${id}/phases/collect-income`)
+  await apiClient.post(`/games/${id}/phases/collect`)
 }
 
 export async function nextPhase(id: string): Promise<void> {
-  await apiClient.post(`/games/${id}/next-phase`)
+  await apiClient.post(`/games/${id}/phases/next`)
 }

@@ -10,8 +10,11 @@ import {
   createGame,
   getGame,
   listGamesForUser,
+  listOpenGames,
   joinGame,
   setPlayerReady,
+  serializeGameState,
+  serializeGameSummary,
 } from "../services/gameService.js";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
@@ -33,7 +36,14 @@ export async function gameRoutes(fastify: FastifyInstance): Promise<void> {
 
   // ── GET /api/games ────────────────────────────────────────────────────────
   fastify.get("/games", async (request, reply) => {
-    const games = await listGamesForUser(request.user.id);
+    const [myGames, openGames] = await Promise.all([
+      listGamesForUser(request.user.id),
+      listOpenGames(request.user.id),
+    ]);
+    const games = [
+      ...myGames.map(serializeGameSummary),
+      ...openGames.map(serializeGameSummary),
+    ];
     return reply.send({ games });
   });
 
@@ -50,13 +60,13 @@ export async function gameRoutes(fastify: FastifyInstance): Promise<void> {
     const { name, power } = parseResult.data;
 
     const game = await createGame(name, request.user.id, power);
-    return reply.status(201).send({ game });
+    return reply.status(201).send({ game: serializeGameState(game) });
   });
 
   // ── GET /api/games/:id ────────────────────────────────────────────────────
   fastify.get<{ Params: { id: string } }>("/games/:id", async (request, reply) => {
     const game = await getGame(request.params.id);
-    return reply.send({ game });
+    return reply.send({ game: serializeGameState(game) });
   });
 
   // ── POST /api/games/:id/join ──────────────────────────────────────────────

@@ -15,7 +15,7 @@ import { GameStatus, PowerName, TurnPhase, advanceTurn, TERRITORIES, STARTING_UN
 import type { UnitType as PrismaUnitType } from "@prisma/client";
 import { db } from "../db.js";
 
-// ─── Re-exported full game type ───────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 export type FullGame = Game & {
   players: (GamePlayer & { user: { id: string; username: string; email: string } })[];
@@ -23,6 +23,10 @@ export type FullGame = Game & {
   units: Unit[];
   turns: Turn[];
   combatEvents: CombatEvent[];
+};
+
+type GameWithPlayers = Game & {
+  players: (GamePlayer & { user: { id: string; username: string; email: string } })[];
 };
 
 // ─── Include definition used throughout ──────────────────────────────────────
@@ -158,22 +162,174 @@ export async function getGameForPlayer(
  * List all games a user participates in (any status), most recently updated
  * first.
  */
-export async function listGamesForUser(userId: string): Promise<Game[]> {
+export async function listGamesForUser(userId: string): Promise<GameWithPlayers[]> {
   return db.game.findMany({
-    where: {
-      players: {
-        some: { userId },
-      },
-    },
+    where: { players: { some: { userId } } },
     include: {
       players: {
-        include: {
-          user: { select: { id: true, username: true, email: true } },
-        },
+        include: { user: { select: { id: true, username: true, email: true } } },
       },
     },
     orderBy: { updatedAt: "desc" },
+  }) as unknown as GameWithPlayers[];
+}
+
+/**
+ * List open LOBBY games the user has NOT yet joined (so they can discover and
+ * join them from the lobby screen).
+ */
+export async function listOpenGames(userId: string): Promise<GameWithPlayers[]> {
+  return db.game.findMany({
+    where: {
+      status: GameStatus.LOBBY,
+      players: { none: { userId } },
+    },
+    include: {
+      players: {
+        include: { user: { select: { id: true, username: true, email: true } } },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  }) as unknown as GameWithPlayers[];
+}
+
+// ─── Serializers ──────────────────────────────────────────────────────────────
+
+/**
+ * Maps a FullGame Prisma record to the frontend-expected GameState shape.
+ * Renames fields, merges territory mapData, and derives activeCombats and
+ * pendingPurchases.
+ */
+export function serializeGameState(game: FullGame) {
+  const territoriesMap = new Map(TERRITORIES.map((t) => [t.key, t]));
+
+  const territories = game.territories.map((t) => {
+    const meta = territoriesMap.get(t.territoryKey);
+    return {
+      key: t.territoryKey,
+      name: meta?.name ?? t.territoryKey,
+      controller: t.controlledBy ?? null,
+      ipcValue: meta?.ipcValue ?? 0,
+      hasFactory: meta?.hasFactory ?? false,
+      type: meta?.type ?? "LAND",
+      adjacencies: meta?.adjacencies ?? [],
+    };
   });
+
+  const players = game.players.map((p) => ({
+    userId: p.userId,
+    username: p.user.username,
+    power: p.power,
+    ipc: p.ipcBalance,
+    isReady: p.isReady,
+  }));
+
+  const units = game.units.map((u) => ({
+    id: u.id,
+    type: u.type,
+    power: u.power,
+    territoryKey: u.territoryKey,
+    isDisabled: u.isDisabled,
+  }));
+
+  // Derive activeCombats: territories with units from multiple powers during CONDUCT_COMBAT
+  const activeCombats: Array<{
+    territory: string;
+    attackingPower: string;
+    defendingPower: string | null;
+    attackerUnitIds: string[];
+    defenderUnitIds: string[];
+    round: number;
+    log: string[];
+  }> = [];
+
+  if (game.activePhase === TurnPhase.CONDUCT_COMBAT) {
+    const byTerritory = new Map<string, typeof game.units>();
+    for (const unit of game.units) {
+      const arr = byTerritory.get(unit.territoryKey) ?? [];
+      arr.push(unit);
+      byTerritory.set(unit.territoryKey, arr);
+    }
+    for (const [territory, unitsHere] of byTerritory) {
+      const powers = new Set(unitsHere.map((u) => u.power));
+      if (powers.size > 1) {
+        const attackerUnits = unitsHere.filter((u) => u.power === game.activePower);
+        const defenderUnits = unitsHere.filter((u) => u.power !== game.activePower);
+        const lastEvent = game.combatEvents
+          .filter((e) => e.territoryKey === territory)
+          .slice(-1)[0];
+        activeCombats.push({
+          territory,
+          attackingPower: game.activePower,
+          defendingPower: defenderUnits[0]?.power ?? null,
+          attackerUnitIds: attackerUnits.map((u) => u.id),
+          defenderUnitIds: defenderUnits.map((u) => u.id),
+          round: lastEvent ? lastEvent.combatRound + 1 : 1,
+          log: [],
+        });
+      }
+    }
+  }
+
+  // Derive pendingPurchases from the PURCHASE_UNITS turn for the current round/power
+  const purchaseTurn = game.turns.find(
+    (t) =>
+      t.roundNumber === game.currentRound &&
+      t.power === game.activePower &&
+      t.phase === TurnPhase.PURCHASE_UNITS,
+  );
+  type PurchaseEntry = {
+    type: string;
+    purchases: Array<{ type: string; quantity: number }>;
+  };
+  const pendingPurchases: Array<{ type: string; quantity: number }> = [];
+  if (purchaseTurn && Array.isArray(purchaseTurn.actionLog)) {
+    for (const entry of purchaseTurn.actionLog as PurchaseEntry[]) {
+      if (entry.type === "PURCHASE" && Array.isArray(entry.purchases)) {
+        for (const p of entry.purchases) {
+          pendingPurchases.push({ type: p.type, quantity: p.quantity });
+        }
+      }
+    }
+  }
+
+  return {
+    id: game.id,
+    name: game.name,
+    status: game.status,
+    round: game.currentRound,
+    activePower: game.activePower,
+    currentPhase: game.activePhase,
+    players,
+    units,
+    territories,
+    activeCombats,
+    pendingPurchases,
+    createdAt: game.createdAt.toISOString(),
+    updatedAt: game.updatedAt.toISOString(),
+  };
+}
+
+/**
+ * Maps a Game+players record to the frontend-expected GameSummary shape.
+ */
+export function serializeGameSummary(game: GameWithPlayers) {
+  return {
+    id: game.id,
+    name: game.name,
+    status: game.status,
+    round: game.currentRound,
+    activePower: game.activePower,
+    currentPhase: game.activePhase,
+    players: game.players.map((p) => ({
+      userId: p.userId,
+      username: p.user.username,
+      power: p.power,
+      ipc: p.ipcBalance,
+      isReady: p.isReady,
+    })),
+    createdAt: game.createdAt.toISOString(),
+  };
 }
 
 /**
