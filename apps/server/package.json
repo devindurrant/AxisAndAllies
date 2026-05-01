@@ -1,0 +1,33 @@
+{
+  "name": "@aa/server",
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@aa/shared": "workspace:*",
+    "@prisma/client": "^5.15.0",
+    "fastify": "^4.27.0",
+    "@fastify/cookie": "^9.3.1",
+    "@fastify/cors": "^9.0.1",
+    "socket.io": "^4.7.5",
+    "lucia": "^3.2.0",
+    "@lucia-auth/adapter-prisma": "^1.1.0",
+    "bcrypt": "^5.1.1",
+    "zod": "^3.23.8",
+    "resend": "^3.3.0"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
+    "@types/node": "^20.14.2",
+    "prisma": "^5.15.0",
+    "tsx": "^4.15.7",
+    "typescript": "^5.4.5"
+  }
+}

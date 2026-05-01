@@ -1,0 +1,147 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum PowerName {
+  USSR
+  GERMANY
+  UK
+  JAPAN
+  USA
+}
+
+enum TurnPhase {
+  PURCHASE_UNITS
+  COMBAT_MOVE
+  CONDUCT_COMBAT
+  NONCOMBAT_MOVE
+  MOBILIZE_UNITS
+  COLLECT_INCOME
+}
+
+enum UnitType {
+  INFANTRY
+  ARTILLERY
+  TANK
+  FIGHTER
+  BOMBER
+  SUBMARINE
+  DESTROYER
+  CARRIER
+  BATTLESHIP
+  AA_GUN
+  INDUSTRIAL_COMPLEX
+  TRANSPORT
+}
+
+enum GameStatus {
+  LOBBY
+  ACTIVE
+  COMPLETED
+  ABANDONED
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  username     String       @unique
+  passwordHash String
+  createdAt    DateTime     @default(now())
+  sessions     Session[]
+  gamePlayers  GamePlayer[]
+}
+
+model Session {
+  id        String   @id
+  userId    String
+  expiresAt DateTime
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Game {
+  id           String          @id @default(cuid())
+  name         String
+  status       GameStatus      @default(LOBBY)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  currentRound Int             @default(1)
+  activePower  PowerName       @default(USSR)
+  activePhase  TurnPhase       @default(PURCHASE_UNITS)
+  players      GamePlayer[]
+  territories  TerritoryState[]
+  units        Unit[]
+  turns        Turn[]
+  combatEvents CombatEvent[]
+}
+
+model GamePlayer {
+  id         String    @id @default(cuid())
+  gameId     String
+  userId     String
+  power      PowerName
+  isReady    Boolean   @default(false)
+  ipcBalance Int       @default(0)
+  game       Game      @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, userId])
+  @@unique([gameId, power])
+}
+
+model TerritoryState {
+  id           String    @id @default(cuid())
+  gameId       String
+  territoryKey String
+  controlledBy PowerName?
+  game         Game      @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, territoryKey])
+}
+
+model Unit {
+  id           String    @id @default(cuid())
+  gameId       String
+  territoryKey String
+  power        PowerName
+  type         UnitType
+  isDisabled   Boolean   @default(false)
+  hasMoved     Boolean   @default(false)
+  game         Game      @relation(fields: [gameId], references: [id], onDelete: Cascade)
+}
+
+model Turn {
+  id          String    @id @default(cuid())
+  gameId      String
+  roundNumber Int
+  power       PowerName
+  phase       TurnPhase
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  actionLog   Json      @default("[]")
+  game        Game      @relation(fields: [gameId], references: [id], onDelete: Cascade)
+}
+
+model CombatEvent {
+  id              String    @id @default(cuid())
+  gameId          String
+  roundNumber     Int
+  territoryKey    String
+  attackingPower  PowerName
+  defendingPower  PowerName
+  combatRound     Int
+  attackDice      Int[]
+  defenseDice     Int[]
+  attackHits      Int
+  defenseHits     Int
+  unitsLost       Json
+  game            Game      @relation(fields: [gameId], references: [id], onDelete: Cascade)
+}
