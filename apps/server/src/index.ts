@@ -1,17 +1,17 @@
 /**
  * Axis & Allies server entry point.
  *
- * - Creates a Fastify instance with JSON logging.
- * - Registers CORS, cookie, and all route plugins.
- * - Attaches Socket.io to the underlying HTTP server.
- * - Authenticates socket connections via session cookie.
- * - Listens on the configured port.
+ * Startup sequence:
+ *  1. Create Fastify, register plugins and routes.
+ *  2. Call fastify.ready() to initialize without listening.
+ *  3. Attach Socket.io to fastify.server (same http.Server Fastify owns).
+ *  4. Register socket event handlers.
+ *  5. Call fastify.listen() — now both HTTP and WebSocket share one port.
  */
 
 import Fastify from "fastify";
 import fastifyCookie from "@fastify/cookie";
 import fastifyCors from "@fastify/cors";
-import { createServer } from "http";
 import { Server as SocketServer } from "socket.io";
 import { config } from "./config.js";
 import { lucia } from "./auth/lucia.js";
@@ -30,27 +30,9 @@ import { db } from "./db.js";
 // ─── Fastify ──────────────────────────────────────────────────────────────────
 
 const fastify = Fastify({
-  logger: config.nodeEnv === "production"
-    ? { level: "warn" }
-    : { level: "info" },
+  // Always use info so startup messages appear in container logs.
+  logger: { level: "info" },
 });
-
-// ─── HTTP server (wrapping Fastify for Socket.io) ────────────────────────────
-
-const httpServer = createServer(fastify.server);
-
-// ─── Socket.io ────────────────────────────────────────────────────────────────
-
-export const io = new SocketServer(httpServer, {
-  cors: {
-    origin: config.webUrl,
-    methods: ["GET", "POST"],
-    credentials: true,
-  },
-});
-
-// Attach io to fastify instance so routes can access it
-(fastify as unknown as { io: SocketServer }).io = io;
 
 // ─── Plugins ──────────────────────────────────────────────────────────────────
 
@@ -79,12 +61,35 @@ fastify.get("/health", async (_request, reply) => {
   return reply.send({ status: "ok", timestamp: new Date().toISOString() });
 });
 
+// ─── Initialize (without listening) ──────────────────────────────────────────
+//
+// fastify.ready() runs all plugin onReady hooks. We must do this before
+// attaching Socket.io so that fastify.server exists and is fully configured.
+
+await fastify.ready();
+
+// ─── Socket.io ────────────────────────────────────────────────────────────────
+//
+// Attach Socket.io to the *same* http.Server that Fastify owns.
+// Do NOT wrap fastify.server in createServer() — that produces a second,
+// empty server with no Fastify handler.
+
+export const io = new SocketServer(fastify.server, {
+  cors: {
+    origin: config.webUrl,
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
+});
+
+// Make io accessible to route handlers via fastify instance decoration.
+(fastify as unknown as { io: SocketServer }).io = io;
+
 // ─── Socket.io connection handling ───────────────────────────────────────────
 
 io.on("connection", async (socket) => {
   fastify.log.info({ socketId: socket.id }, "Socket connected");
 
-  // Authenticate via session cookie
   const cookieHeader = socket.handshake.headers.cookie ?? "";
   const cookies = parseCookieHeader(cookieHeader);
   const sessionId = cookies["aa_session"];
@@ -107,45 +112,33 @@ io.on("connection", async (socket) => {
   if (!authenticatedUserId) {
     fastify.log.warn(
       { socketId: socket.id },
-      "Unauthenticated socket connection — limited access",
+      "Unauthenticated socket — limited access",
     );
   }
 
-  // ── Event: join a game room ──────────────────────────────────────────────
   socket.on("game:join", async (data: { gameId: string }) => {
     const { gameId } = data;
-    if (!gameId) return;
+    if (!gameId || !authenticatedUserId) return;
 
-    // Verify user is a player in this game
-    if (authenticatedUserId) {
-      const player = await db.gamePlayer.findFirst({
-        where: { gameId, userId: authenticatedUserId },
+    const player = await db.gamePlayer.findFirst({
+      where: { gameId, userId: authenticatedUserId },
+    });
+
+    if (player) {
+      joinGameRoom(socket, gameId);
+      fastify.log.info({ socketId: socket.id, gameId }, "Joined game room");
+      socket.to(`game:${gameId}`).emit("game:player_connected", {
+        gameId,
+        userId: authenticatedUserId,
+        username: authenticatedUsername ?? "Unknown",
       });
-
-      if (player) {
-        joinGameRoom(socket, gameId);
-        fastify.log.info(
-          { socketId: socket.id, gameId },
-          "Socket joined game room",
-        );
-
-        // Notify other players
-        socket.to(`game:${gameId}`).emit("game:player_connected", {
-          gameId,
-          userId: authenticatedUserId,
-          username: authenticatedUsername ?? "Unknown",
-        });
-      }
     }
   });
 
-  // ── Event: leave a game room ─────────────────────────────────────────────
   socket.on("game:leave", (data: { gameId: string }) => {
     const { gameId } = data;
     if (!gameId) return;
-
     leaveGameRoom(socket, gameId);
-
     if (authenticatedUserId) {
       socket.to(`game:${gameId}`).emit("game:player_disconnected", {
         gameId,
@@ -155,48 +148,29 @@ io.on("connection", async (socket) => {
     }
   });
 
-  // ── Disconnect ────────────────────────────────────────────────────────────
   socket.on("disconnect", (reason) => {
-    fastify.log.info(
-      { socketId: socket.id, reason },
-      "Socket disconnected",
-    );
-
-    // Notify all rooms this socket was in
+    fastify.log.info({ socketId: socket.id, reason }, "Socket disconnected");
     for (const room of socket.rooms) {
-      if (room.startsWith("game:")) {
+      if (room.startsWith("game:") && authenticatedUserId) {
         const gameId = room.replace("game:", "");
-        if (authenticatedUserId) {
-          io.to(room).emit("game:player_disconnected", {
-            gameId,
-            userId: authenticatedUserId,
-            username: authenticatedUsername ?? "Unknown",
-          });
-        }
+        io.to(room).emit("game:player_disconnected", {
+          gameId,
+          userId: authenticatedUserId,
+          username: authenticatedUsername ?? "Unknown",
+        });
       }
     }
   });
 });
 
-// ─── Start server ─────────────────────────────────────────────────────────────
+// ─── Start listening ──────────────────────────────────────────────────────────
 
-async function start(): Promise<void> {
-  try {
-    await fastify.ready();
-
-    httpServer.listen(config.port, "0.0.0.0", () => {
-      fastify.log.info(
-        { port: config.port, env: config.nodeEnv },
-        "Server listening",
-      );
-    });
-  } catch (err) {
-    fastify.log.error(err);
-    process.exit(1);
-  }
+try {
+  await fastify.listen({ port: config.port, host: "0.0.0.0" });
+} catch (err) {
+  fastify.log.error(err);
+  process.exit(1);
 }
-
-void start();
 
 // ─── Graceful shutdown ────────────────────────────────────────────────────────
 
@@ -213,11 +187,6 @@ process.on("SIGINT", () => void shutdown());
 
 // ─── Utility ─────────────────────────────────────────────────────────────────
 
-/**
- * Minimal cookie header parser that returns a key→value map.
- * Only used for Socket.io authentication where the cookie middleware
- * from Fastify is not available.
- */
 function parseCookieHeader(header: string): Record<string, string> {
   const result: Record<string, string> = {};
   for (const part of header.split(";")) {
