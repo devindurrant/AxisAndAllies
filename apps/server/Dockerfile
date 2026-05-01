@@ -18,9 +18,10 @@ COPY apps/server ./apps/server
 COPY tsconfig.base.json ./
 
 # Build shared package then server
+# prisma generate must run before tsc so Prisma client types exist during compilation
 RUN pnpm --filter @aa/shared build
-RUN pnpm --filter @aa/server build
 RUN pnpm --filter @aa/server exec prisma generate
+RUN pnpm --filter @aa/server build
 
 # ── Stage 2: production ───────────────────────────────────────────────────────
 FROM node:20-alpine AS production
